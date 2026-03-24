@@ -1,0 +1,10 @@
+{
+  "name": "discord-trading-journal-bot",
+  "version": "1.0.0",
+  "description": "Trading journal bot voor Discord",
+  "main": "index.js",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5"
+  }
+}
