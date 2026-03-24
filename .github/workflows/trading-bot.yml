@@ -1,0 +1,31 @@
+name: Trading Journal Bot (NY Session)
+
+on:
+  schedule:
+    - cron: '50 12 * * 1-5' 
+  workflow_dispatch: 
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Start Discord Bot (Runs for 2 hours)
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          JOURNAL_CHANNEL_ID: ${{ secrets.JOURNAL_CHANNEL_ID }}
+        run: node index.js
