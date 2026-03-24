@@ -12,7 +12,6 @@ const client = new Client({
 client.once('ready', () => {
     console.log(`✅ Bot is online als ${client.user.tag}!`);
     
-    // Automatisch afsluiten na 2,5 uur voor GitHub Actions
     setTimeout(() => {
         console.log('Tijd is om. Bot sluit netjes af!');
         client.destroy();
@@ -25,12 +24,12 @@ client.on('messageCreate', async (message) => {
 
     if (message.channel.id === process.env.JOURNAL_CHANNEL_ID && message.attachments.size > 0) {
         
-        // AANGEPAST: 50% Tap is toegevoegd en maxValues is verhoogd
+        // AANGEPAST: We plakken het ID van de poster aan de 'customId' van het menu vast
         const select = new StringSelectMenuBuilder()
-            .setCustomId('confluence_select')
+            .setCustomId(`confluence_select_${message.author.id}`)
             .setPlaceholder('Vink je confluences aan...')
             .setMinValues(1)
-            .setMaxValues(8) // Verhoogd naar 8
+            .setMaxValues(8)
             .addOptions(
                 new StringSelectMenuOptionBuilder().setLabel('Killzone').setDescription('9:30-11am EST').setValue('Killzone').setEmoji('🎯'),
                 new StringSelectMenuOptionBuilder().setLabel('Premium / Discount').setDescription('Right side of range').setValue('Premium/Discount').setEmoji('⚖️'),
@@ -45,28 +44,40 @@ client.on('messageCreate', async (message) => {
         const row = new ActionRowBuilder().addComponents(select);
 
         await message.reply({
-            content: 'Selecteer de confluences voor deze trade:',
+            // Extraatje: we taggen de gebruiker zodat het duidelijk is voor wie het menu is
+            content: `<@${message.author.id}>, selecteer de confluences voor deze trade:`,
             components: [row]
         });
     }
 });
 
-// Tijdelijke opslag voor de gekozen confluences
 const tempTradeData = new Map();
 
 client.on('interactionCreate', async (interaction) => {
     
-    // STAP 1: De dropdown is ingevuld
-    if (interaction.isStringSelectMenu() && interaction.customId === 'confluence_select') {
+    // STAP 1: De dropdown wordt aangeklikt
+    // We checken nu of de ID BEGINT met 'confluence_select_'
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('confluence_select_')) {
+        
+        // BEVEILIGING: Haal het ID van de originele poster uit de knop-code
+        const allowedUserId = interaction.customId.replace('confluence_select_', '');
+        
+        // Controleer of degene die klikt, de originele poster is
+        if (interaction.user.id !== allowedUserId) {
+            // 'ephemeral: true' betekent dat het berichtje onzichtbaar is voor de rest van de server
+            return interaction.reply({ 
+                content: '❌ **Fout:** Je mag alleen de confluences van je eigen trades invullen!', 
+                ephemeral: true 
+            });
+        }
+
         const geselecteerd = interaction.values;
         tempTradeData.set(interaction.message.id, geselecteerd);
 
-        // Maak de pop-up (Modal) aan
         const modal = new ModalBuilder()
             .setCustomId(`trade_details_${interaction.message.id}`)
             .setTitle('Trade Details Toevoegen');
 
-        // Input 1: Cijfer
         const gradeInput = new TextInputBuilder()
             .setCustomId('trade_grade')
             .setLabel('Cijfer (B, B+, A-, A, A+)')
@@ -74,7 +85,6 @@ client.on('interactionCreate', async (interaction) => {
             .setRequired(true)
             .setMaxLength(2);
 
-        // Input 2: Profit / Loss (NIEUW)
         const pnlInput = new TextInputBuilder()
             .setCustomId('trade_pnl')
             .setLabel('Profit / Loss (bijv. +$150 of -$50)')
@@ -82,7 +92,6 @@ client.on('interactionCreate', async (interaction) => {
             .setRequired(true)
             .setMaxLength(15);
 
-        // Input 3: Sizing (NIEUW)
         const sizingInput = new TextInputBuilder()
             .setCustomId('trade_sizing')
             .setLabel('Sizing (Aantal MNQ contracten)')
@@ -90,14 +99,12 @@ client.on('interactionCreate', async (interaction) => {
             .setRequired(true)
             .setMaxLength(10);
 
-        // Input 4: Notities
         const notesInput = new TextInputBuilder()
             .setCustomId('trade_notes')
             .setLabel('Notities over de trade')
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(false);
 
-        // Elke input moet in zijn eigen 'ActionRow' zitten
         const firstRow = new ActionRowBuilder().addComponents(gradeInput);
         const secondRow = new ActionRowBuilder().addComponents(pnlInput);
         const thirdRow = new ActionRowBuilder().addComponents(sizingInput);
@@ -113,7 +120,6 @@ client.on('interactionCreate', async (interaction) => {
         const messageId = interaction.customId.replace('trade_details_', '');
         const confluences = tempTradeData.get(messageId) || ['Geen data gevonden'];
         
-        // Haal alle ingevulde data op
         const grade = interaction.fields.getTextInputValue('trade_grade').toUpperCase();
         const pnl = interaction.fields.getTextInputValue('trade_pnl');
         const sizing = interaction.fields.getTextInputValue('trade_sizing');
@@ -121,28 +127,24 @@ client.on('interactionCreate', async (interaction) => {
 
         const confluencesText = confluences.map(c => `✅ ${c}`).join('\n');
 
-        // Bepaal de kleur van het blokje op basis van winst/verlies (Groen bij +, Rood bij -)
-        let embedColor = '#808080'; // Standaard grijs
-        if (pnl.includes('+')) embedColor = '#00FF00'; // Groen
-        if (pnl.includes('-')) embedColor = '#FF0000'; // Rood
+        let embedColor = '#808080'; 
+        if (pnl.includes('+')) embedColor = '#00FF00'; 
+        if (pnl.includes('-')) embedColor = '#FF0000'; 
 
-        // Maak het uiteindelijke blokje (Embed) op
         const resultEmbed = new EmbedBuilder()
             .setColor(embedColor)
             .setTitle(`Trade Setup Grade: ${grade}`)
             .addFields(
-                // inline: true zorgt ervoor dat deze twee netjes naast elkaar komen!
                 { name: '💰 Profit / Loss', value: pnl, inline: true },
                 { name: '📊 Sizing', value: `${sizing} MNQ`, inline: true },
-                { name: '\u200B', value: '\u200B' }, // Lege regel voor wat ademruimte in de opmaak
+                { name: '\u200B', value: '\u200B' }, 
                 { name: '📋 Confluences', value: confluencesText },
                 { name: '📝 Notities', value: notes }
             )
             .setTimestamp();
 
-        // Update het originele bericht
         await interaction.update({ 
-            content: '', 
+            content: `<@${interaction.user.id}>'s Trade Journal:`, 
             embeds: [resultEmbed],
             components: [] 
         });
