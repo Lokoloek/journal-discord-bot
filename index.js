@@ -13,12 +13,12 @@ client.once('ready', () => {
     console.log(`✅ Bot is online als ${client.user.tag}!`);
     console.log(`Luistert naar kanaal ID: ${process.env.JOURNAL_CHANNEL_ID}`);
 
-    // AUTOMATISCH AFSLUITEN NA 2 UUR (7.200.000 ms)
-    setTimeout(() => {
-        console.log('Tijd is om (2 uur verstreken). Bot sluit netjes af voor GitHub Actions!');
-        client.destroy();
-        process.exit(0); // Exit code 0 betekent dat de GitHub Action 'Succesvol' is afgerond
-    }, 7200000); 
+// AUTOMATISCH AFSLUITEN NA 2 UUR (7.200.000 ms)
+ setTimeout(() => {
+     console.log('Tijd is om (2 uur verstreken). Bot sluit netjes af voor GitHub Actions!');
+     client.destroy();
+     process.exit(0); 
+ }, 9000000);
 });
 
 client.on('messageCreate', async (message) => {
